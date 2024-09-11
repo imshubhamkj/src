@@ -1,6 +1,7 @@
 import tornado.ioloop
 import tornado.web
 import tornado.websocket
+import json
 import os
 
 class WebSocketHandler(tornado.websocket.WebSocketHandler):
@@ -8,40 +9,88 @@ class WebSocketHandler(tornado.websocket.WebSocketHandler):
         print("WebSocket connection opened")
 
     def on_message(self, message):
-        print(f"Received message from client: {message}")
-        
-        # Handle the message, if it's a request for a file download
-        if message == "download_file":
-            self.send_file()
+        print(f"Message received from client: {message}")
 
-    def send_file(self):
+        # Parse the client message to determine which file type to send
+        if message == "request_json":
+            self.send_json_file()
+        elif message == "request_csv":
+            self.send_csv_file()
+        elif message == "request_excel":
+            self.send_excel_file()
+        else:
+            self.write_message("Invalid request")
+
+    def send_json_file(self):
+        # Sample JSON data to send
+        json_data = {
+            "name": "Example",
+            "data": [1, 2, 3, 4, 5]
+        }
+        # Convert the dictionary to a JSON string and send it
+        json_message = json.dumps(json_data)
+        self.write_message(json_message)
+        print("Sent JSON file to client")
+
+    def send_csv_file(self):
         try:
-            # Specify the file path to send
-            file_path = 'sample_file.xlsx'  # Example file path (can be any file)
+            # Path to the CSV file
+            file_path = 'sample_file.csv'
             file_size = os.path.getsize(file_path)
             file_name = os.path.basename(file_path)
-            file_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"  # MIME type for an Excel file
-            
-            # Send metadata first
+            file_type = "text/csv"
+
+            # Send file metadata as JSON
             metadata = {
                 "file_name": file_name,
                 "file_size": file_size,
                 "file_type": file_type
             }
-            self.write_message(metadata)
+            self.write_message(json.dumps(metadata))
 
-            # Send file in chunks if necessary, otherwise as a single binary message
+            # Send CSV file in chunks (binary mode)
             with open(file_path, 'rb') as f:
                 while True:
-                    chunk = f.read(4096)  # Read the file in 4KB chunks
+                    chunk = f.read(4096)
                     if not chunk:
                         break
                     self.write_message(chunk, binary=True)
+            print("Sent CSV file to client")
 
         except FileNotFoundError:
-            self.write_message({"error": "File not found"})
+            self.write_message(json.dumps({"error": "CSV file not found"}))
         except Exception as e:
-            self.write_message({"error": str(e)})
+            self.write_message(json.dumps({"error": str(e)}))
+
+    def send_excel_file(self):
+        try:
+            # Path to the Excel file
+            file_path = 'sample_file.xlsx'
+            file_size = os.path.getsize(file_path)
+            file_name = os.path.basename(file_path)
+            file_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            
+            # Send file metadata as JSON
+            metadata = {
+                "file_name": file_name,
+                "file_size": file_size,
+                "file_type": file_type
+            }
+            self.write_message(json.dumps(metadata))
+
+            # Send Excel file in chunks (binary mode)
+            with open(file_path, 'rb') as f:
+                while True:
+                    chunk = f.read(4096)
+                    if not chunk:
+                        break
+                    self.write_message(chunk, binary=True)
+            print("Sent Excel file to client")
+
+        except FileNotFoundError:
+            self.write_message(json.dumps({"error": "Excel file not found"}))
+        except Exception as e:
+            self.write_message(json.dumps({"error": str(e)}))
 
     def on_close(self):
         print("WebSocket connection closed")
